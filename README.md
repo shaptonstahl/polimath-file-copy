@@ -25,39 +25,36 @@ A free, open-source desktop file copy and move utility for Windows, Linux and ma
 
 Every dependency is free and open source. See [docs/RESEARCH.md](docs/RESEARCH.md) for why this exists rather than an rsync, rclone or FreeFileSync GUI.
 
-## Development
+## Install
 
-Prerequisites: [Rust](https://rustup.rs), Node.js 20+, and the [Tauri system prerequisites](https://tauri.app/start/prerequisites/) for your OS (WebView2 on Windows, webkit2gtk on Linux).
+[![CI](https://github.com/shaptonstahl/polimath-file-copy/actions/workflows/ci.yml/badge.svg)](https://github.com/shaptonstahl/polimath-file-copy/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/shaptonstahl/polimath-file-copy?include_prereleases)](https://github.com/shaptonstahl/polimath-file-copy/releases/latest)
+
+Download from the [latest release](https://github.com/shaptonstahl/polimath-file-copy/releases/latest):
+
+- **Windows 10/11:** setup `.exe`, `.msi`, or a portable `.exe`
+- **macOS:** universal `.dmg` for Apple silicon and Intel
+- **Linux:** `.deb`, `.rpm` or `.AppImage`
+
+The builds are not code-signed, since this is a free project with no budget for signing certificates. [docs/INSTALL.md](docs/INSTALL.md) shows how to get past the Windows and macOS first-run warnings, and how to check a download against the SHA-256 checksums that CI publishes with every release.
+
+## Build from source
+
+Install Git, [Rust](https://rustup.rs), [Node.js](https://nodejs.org) LTS, and your OS's [Tauri prerequisites](docs/BUILDING.md#1-install-the-prerequisites). Then:
 
 ```bash
-npm install
+git clone https://github.com/shaptonstahl/polimath-file-copy.git
 ```
 
 ```bash
-npm run tauri dev
+cd polimath-file-copy && npm ci
 ```
-
-Run the Rust unit tests:
-
-```bash
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-Read-only diagnostics, which read metadata only and never download or write anything:
-
-```bash
-cargo run --manifest-path src-tauri/Cargo.toml --example probe -- "C:\Users\me\Dropbox"
-```
-
-```bash
-cargo run --manifest-path src-tauri/Cargo.toml --example plan -- move "D:\Backup" "C:\Users\me\Dropbox\Docs"
-```
-
-Build installers:
 
 ```bash
 npm run tauri build
 ```
+
+[docs/BUILDING.md](docs/BUILDING.md) has per-OS prerequisites (Windows, macOS, Debian/Ubuntu, Fedora, Arch, openSUSE), dev mode, tests, where installers end up, read-only diagnostics, and how releases are made.
 
 ## Layout
 

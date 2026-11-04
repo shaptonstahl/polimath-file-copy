@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Polimath File Copy",
-  "version": "0.1.0",
+  "mainBinaryName": "polimath-file-copy",
+  "version": "../package.json",
   "identifier": "com.polimath.filecopy",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -35,6 +36,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Stephen Haptonstahl",
+    "homepage": "https://github.com/shaptonstahl/polimath-file-copy",
+    "copyright": "Copyright (c) 2026 Stephen Haptonstahl. MIT License.",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "category": "Utility",
+    "shortDescription": "Copy and move files safely across synced and remote folders",
+    "longDescription": "A free, open-source copy/move utility that plans from metadata only, recognizes cloud-only placeholders (OneDrive, Dropbox, Synology Drive, iCloud) and warns before risky operations."
   }
 }

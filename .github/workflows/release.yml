@@ -1,0 +1,143 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching the version in package.json and
+# src-tauri/Cargo.toml) to build installers for Windows, macOS and Linux,
+# attach them to a GitHub Release with SHA-256 checksums, and publish it.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Check that the tag matches the app version
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          cargo=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
+          echo "tag=$TAG package.json=$pkg Cargo.toml=$cargo"
+          if [ "$TAG" != "v$pkg" ] || [ "$pkg" != "$cargo" ]; then
+            echo "::error::Tag $TAG must equal v<version>, and package.json ($pkg) must match Cargo.toml ($cargo)."
+            exit 1
+          fi
+
+      - name: Create draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "Polimath File Copy $TAG" --notes "Building…" --verify-tag
+          fi
+          id=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: create-release
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            args: ""
+            plain: true
+          - name: macOS universal
+            os: macos-latest
+            args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            plain: false
+          - name: Linux x64
+            os: ubuntu-22.04
+            args: ""
+            plain: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+          uploadPlainBinary: ${{ matrix.plain }}
+          uploadUpdaterJson: false
+
+  checksums:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute SHA-256 checksums and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets && cd assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --skip-existing
+          rm -f SHA256SUMS.txt
+          sha256sum -- * | tee ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt .
+          gh release upload "$TAG" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+
+          {
+            echo "Free, open-source copy/move utility for synced and remote folders."
+            echo
+            echo "**Install:** see [Installing](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/INSTALL.md)."
+            echo "These builds are not code-signed, so Windows and macOS show a warning the first time you open them; the install guide explains what to click."
+            echo
+            echo "### SHA-256 checksums"
+            echo
+            echo '| File | SHA-256 |'
+            echo '|---|---|'
+            grep -v ' SHA256SUMS.txt$' SHA256SUMS.txt | while read -r hash file; do
+              echo "| \`$file\` | \`$hash\` |"
+            done
+            echo
+            echo "The same list is attached as \`SHA256SUMS.txt\`."
+          } > notes.md
+
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md --draft=false
