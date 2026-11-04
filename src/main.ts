@@ -26,13 +26,30 @@ type Environment = {
   notes: Warning[];
 };
 type Plan = {
+  id: number;
+  log_path: string | null;
+  log_error: string | null;
   items: PlanItem[];
   errors: string[];
   warnings: Warning[];
   lookup: { dirs_listed: number; files_statted: number; dirs_missing: number };
 };
 type Progress = { index: number; done: number; total: number; source: string; error: string | null };
-type Summary = { ok: number; failed: number; cancelled: number };
+type Status = "preview" | "success" | "partial" | "failed" | "cancelled";
+type Outcome = {
+  status: Status;
+  title: string;
+  message: string;
+  planned: number;
+  done: number;
+  failed: number;
+  not_attempted: number;
+  skipped: number;
+  log_path: string | null;
+  log_error: string | null;
+};
+type Settings = { log_enabled: boolean; log_dir: string | null };
+type SettingsView = { settings: Settings; default_log_dir: string; effective_log_dir: string };
 
 const MAX_ROWS = 2000;
 
@@ -47,6 +64,7 @@ const summaryEl = $<HTMLDivElement>("summary");
 const errorsEl = $<HTMLUListElement>("errors");
 const table = $<HTMLTableElement>("plan-table");
 const ackBox = $<HTMLInputElement>("ack");
+const logBox = $<HTMLInputElement>("log");
 
 let sources: string[] = [];
 let target: string | null = null;
@@ -129,6 +147,83 @@ invoke<Environment>("environment").then((env) => {
   notes.replaceChildren(...warningItems(env.notes));
   notes.hidden = env.notes.length === 0;
 });
+
+// ---------- settings ----------
+
+let settings: Settings = { log_enabled: false, log_dir: null };
+
+function showSettings(v: SettingsView) {
+  settings = v.settings;
+  logBox.checked = v.settings.log_enabled;
+  $<HTMLInputElement>("log-dir").value = v.effective_log_dir;
+  $("log-dir-default").textContent = v.settings.log_dir
+    ? `Default: ${v.default_log_dir}`
+    : "This is the default location for your user account.";
+  $("reset-log-dir").hidden = !v.settings.log_dir;
+}
+
+async function saveSettings(next: Settings) {
+  $("settings-error").textContent = "";
+  try {
+    showSettings(await invoke<SettingsView>("set_settings", { settings: next }));
+  } catch (e) {
+    $("settings-error").textContent = String(e);
+    logBox.checked = settings.log_enabled;
+  }
+}
+
+invoke<SettingsView>("get_settings").then(showSettings);
+logBox.addEventListener("change", () => saveSettings({ ...settings, log_enabled: logBox.checked }));
+$("open-settings").onclick = () => $<HTMLDialogElement>("settings-dialog").showModal();
+$("choose-log-dir").onclick = async () => {
+  const r = await open({ multiple: false, directory: true, title: "Choose log folder" });
+  if (typeof r === "string") saveSettings({ ...settings, log_dir: r });
+};
+$("reset-log-dir").onclick = () => saveSettings({ ...settings, log_dir: null });
+$("open-log-dir").onclick = () =>
+  invoke("open_log_folder").catch((e) => ($("settings-error").textContent = String(e)));
+
+// ---------- end-of-job popup ----------
+
+let shownLog: string | null = null;
+
+function showOutcome(o: Outcome) {
+  const dlg = $<HTMLDialogElement>("outcome-dialog");
+  dlg.dataset.status = o.status;
+  const icon: Record<Status, string> = { preview: "🔍", success: "✅", partial: "⚠️", failed: "⛔", cancelled: "⏹" };
+  $("outcome-title").textContent = `${icon[o.status]} ${o.title}`;
+  $("outcome-message").textContent = o.message;
+
+  const verb = $<HTMLSelectElement>("operation").value === "move" ? "moved" : "copied";
+  const lines =
+    o.status === "preview"
+      ? [`${o.planned} to transfer`, `${o.skipped} to skip`]
+      : [`${o.done} of ${o.planned} ${verb}`, `${o.failed} failed`, `${o.not_attempted} not attempted`, `${o.skipped} skipped as planned`];
+  $("outcome-counts").replaceChildren(
+    ...lines.map((t) => {
+      const li = document.createElement("li");
+      li.textContent = t;
+      return li;
+    }),
+  );
+
+  shownLog = o.log_path;
+  $("outcome-log").hidden = !o.log_path;
+  $("outcome-log-link").textContent = o.log_path ?? "";
+  $("outcome-log-link").title = "Open this log";
+  $("outcome-log-error").textContent = o.log_error ? `Log problem: ${o.log_error}` : "";
+  dlg.showModal();
+}
+
+const openShownLog = (e?: Event) => {
+  e?.preventDefault();
+  if (shownLog) invoke("open_log", { path: shownLog }).catch((err) => ($("outcome-log-error").textContent = String(err)));
+};
+$("outcome-log-link").onclick = openShownLog;
+$("outcome-open-log").onclick = () => openShownLog();
+$("outcome-reveal-log").onclick = () => {
+  if (shownLog) invoke("reveal_log", { path: shownLog }).catch((err) => ($("outcome-log-error").textContent = String(err)));
+};
 
 // ---------- source & target lists ----------
 
@@ -289,7 +384,7 @@ previewBtn.onclick = async () => {
   previewBtn.disabled = true;
   summaryEl.textContent = "Reading metadata…";
   try {
-    plan = await invoke<Plan>("plan", { req: { sources, target, options: options() } });
+    plan = await invoke<Plan>("plan", { req: { sources, target, options: options(), log: logBox.checked } });
   } catch (e) {
     summaryEl.textContent = String(e);
     return;
@@ -335,6 +430,24 @@ previewBtn.onclick = async () => {
   }
   table.hidden = plan.items.length === 0;
   renderWarnings();
+
+  // Logging was requested: confirm the preview log (or why it failed).
+  if (plan.log_path || plan.log_error) {
+    const verb = options().operation === "move" ? "move" : "copy";
+    const go = n.create + n.overwrite;
+    showOutcome({
+      status: "preview",
+      title: "Preview complete",
+      message: `PREVIEW ONLY - no action was taken. ${go} file${go === 1 ? "" : "s"} would ${verb}; ${n.skip} would be skipped.`,
+      planned: go,
+      done: 0,
+      failed: 0,
+      not_attempted: 0,
+      skipped: n.skip,
+      log_path: plan.log_path,
+      log_error: plan.log_error,
+    });
+  }
 };
 
 // ---------- run ----------
@@ -350,22 +463,20 @@ function setRunning(on: boolean) {
 
 runBtn.onclick = async () => {
   if (!plan || runBtn.disabled) return;
-  const jobs = plan.items
-    .filter((it) => it.action.kind !== "skip")
-    .map((it) => ({ source: it.source, dest: it.dest, rename_only: it.rename_only }));
+  const total = plan.items.filter((it) => it.action.kind !== "skip").length;
   failures = [];
   showErrors([]);
-  progressEl.max = jobs.length;
+  progressEl.max = total;
   progressEl.value = 0;
   progressEl.hidden = false;
   setRunning(true);
   try {
     await invoke("execute", {
       req: {
-        jobs,
-        operation: $<HTMLSelectElement>("operation").value,
+        plan_id: plan.id,
         engine: $<HTMLSelectElement>("engine").value,
         parallel: Number($<HTMLInputElement>("parallel").value) || 4,
+        log: logBox.checked,
       },
     });
   } catch (e) {
@@ -386,16 +497,13 @@ listen<Progress>("transfer-progress", ({ payload: p }) => {
   }
 });
 
-listen<{ Ok: Summary } | { Err: string }>("transfer-done", ({ payload }) => {
+listen<Outcome>("job-finished", ({ payload: o }) => {
   progressEl.hidden = true;
   plan = null; // the file system changed; force a fresh preview
   setRunning(false);
   renderWarnings();
-  if ("Err" in payload) summaryEl.textContent = payload.Err;
-  else {
-    const s = payload.Ok;
-    summaryEl.textContent = `Done: ${s.ok} succeeded, ${s.failed} failed, ${s.cancelled} cancelled. Preview again to see the new state.`;
-  }
+  summaryEl.textContent = `${o.title}: ${o.message} Preview again to see the new state.`;
+  showOutcome(o);
 });
 
 invalidate();

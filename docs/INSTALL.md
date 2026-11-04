@@ -63,6 +63,26 @@ Linux can't tell cloud-only placeholder files from local ones, so the app warns 
 
 The app works on its own. If [rclone](https://rclone.org/install/) (free, MIT licensed) is installed and on your `PATH`, or `RCLONE_PATH` points to it, you can choose **rclone** as the transfer engine.
 
+## Logs
+
+Tick **Write log** to log every Preview and Run. By default, logs go to a per-user folder:
+
+| OS | Default log folder |
+|---|---|
+| Windows | `%LOCALAPPDATA%\com.polimath.filecopy\logs` |
+| macOS | `~/Library/Logs/com.polimath.filecopy` (Console.app shows this folder too) |
+| Linux | `~/.local/share/com.polimath.filecopy/logs` (or `$XDG_DATA_HOME/com.polimath.filecopy/logs`) |
+
+To use a different folder, open **⚙ Settings**, choose **Choose folder…**, and **Use default** to go back. Settings are kept per user in `%APPDATA%\com.polimath.filecopy` (Windows), `~/Library/Application Support/com.polimath.filecopy` (macOS) or `~/.config/com.polimath.filecopy` (Linux).
+
+Log files are named like `polimath-file-copy_2026-11-04_155626_copy.log`, with `_preview` added for previews (`…_copy_preview.log`). Each one has:
+
+- `#` lines at the top describing the job: preview or run, app and OS version, start time, the options used, sources, target, a plan summary, warnings and errors;
+- a tab-separated table with one row per source file: the decision (create, overwrite or skip) and why; the source's size, modified time and cloud-only status; whether the target exists, with its size and modified time; whether the file is moved by renaming; the result; and both full paths;
+- `#` lines at the bottom with the finish time, duration and how the job ended.
+
+To open the table in a spreadsheet, import it as tab-separated and treat lines starting with `#` as comments.
+
 ## Verify the download
 
 Each release lists a SHA-256 checksum for every file in its notes, and attaches the same list as `SHA256SUMS.txt`. GitHub Actions computes them when it builds the release. Compare the checksum of the file you downloaded with the published one.

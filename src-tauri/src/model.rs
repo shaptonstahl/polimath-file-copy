@@ -165,6 +165,12 @@ pub struct LookupStats {
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Plan {
+    /// Identifies this plan; Run refers to it so it executes exactly what
+    /// was previewed.
+    pub id: u64,
+    /// Preview log written for this plan, if logging was on.
+    pub log_path: Option<String>,
+    pub log_error: Option<String>,
     pub items: Vec<PlanItem>,
     pub errors: Vec<String>,
     pub warnings: Vec<Warning>,

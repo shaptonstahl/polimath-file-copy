@@ -38,6 +38,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); }
 .app { display: flex; flex-direction: column; gap: 12px; padding: 12px; height: 100vh; }
 
@@ -108,3 +109,25 @@ tr.skip td { color: var(--skip); }
 .warnings-wrap { display: flex; flex-direction: column; gap: 6px; max-height: 30vh; overflow: auto; flex: none; }
 .ack { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--error); }
 .env-line { color: var(--muted); font-size: 12px; }
+
+dialog {
+  max-width: min(640px, calc(100vw - 32px)); width: 100%;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px;
+}
+dialog::backdrop { background: rgb(0 0 0 / 0.35); }
+dialog h2 { margin: 0 0 8px; font-size: 17px; }
+dialog h3 { margin: 12px 0 4px; font-size: 14px; }
+dialog p { margin: 6px 0; }
+dialog .muted, .muted { color: var(--muted); font-size: 12.5px; }
+dialog .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+dialog .row.end { justify-content: flex-end; margin-top: 16px; }
+dialog .stack { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+dialog .stack input { width: 100%; height: auto; padding: 6px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+.error-text { color: var(--error); font-size: 12.5px; }
+.error-text:empty { display: none; }
+a.path { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--accent); word-break: break-all; }
+.outcome-counts { margin: 6px 0; padding-left: 18px; font-size: 13px; }
+#outcome-dialog[data-status="success"] h2 { color: var(--create); }
+#outcome-dialog[data-status="partial"] h2, #outcome-dialog[data-status="cancelled"] h2 { color: var(--overwrite); }
+#outcome-dialog[data-status="failed"] h2 { color: var(--error); }
