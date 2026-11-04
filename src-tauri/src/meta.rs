@@ -22,6 +22,9 @@ pub enum Kind {
     Dir,
     /// Symlink, junction, device, etc. Not followed.
     Other,
+    /// Older-macOS iCloud stand-in (`.Name.icloud`) for a file that isn't
+    /// downloaded. Only produced by target lookups.
+    ICloudStub,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -177,6 +180,19 @@ pub fn entry_stat(entry: &fs::DirEntry) -> io::Result<Stat> {
     }
 }
 
+/// Older macOS (13 and earlier) replaces an iCloud Drive file `Name` that
+/// isn't downloaded with a small hidden stand-in named `.Name.icloud`.
+/// Returns the real name for such a stand-in.
+pub fn icloud_stub_real_name(name: &std::ffi::OsStr) -> Option<std::ffi::OsString> {
+    let inner = name.to_str()?.strip_prefix('.')?.strip_suffix(".icloud")?;
+    (!inner.is_empty()).then(|| inner.into())
+}
+
+/// The stand-in name older macOS would use for `name`.
+pub fn icloud_stub_name(name: &std::ffi::OsStr) -> std::ffi::OsString {
+    format!(".{}.icloud", name.to_string_lossy()).into()
+}
+
 /// Name normalization for matching target entries: Windows and macOS file
 /// systems are case-insensitive by default.
 pub fn name_key(name: &std::ffi::OsStr) -> String {
@@ -204,6 +220,16 @@ mod tests {
         assert!(!s.meta.cloud_only);
         let std_ms = system_time_ms(fs::metadata(&p).unwrap().modified().unwrap());
         assert!((s.meta.mtime_ms - std_ms).abs() <= 1);
+    }
+
+    #[test]
+    fn icloud_stub_names() {
+        use std::ffi::OsStr;
+        assert_eq!(icloud_stub_real_name(OsStr::new(".Report.pdf.icloud")).unwrap(), "Report.pdf");
+        assert_eq!(icloud_stub_real_name(OsStr::new(".a.icloud")).unwrap(), "a");
+        assert!(icloud_stub_real_name(OsStr::new("Report.pdf.icloud")).is_none());
+        assert!(icloud_stub_real_name(OsStr::new("..icloud")).is_none());
+        assert_eq!(icloud_stub_name(OsStr::new("Report.pdf")), ".Report.pdf.icloud");
     }
 
     #[test]

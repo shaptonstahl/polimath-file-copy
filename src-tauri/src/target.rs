@@ -76,7 +76,15 @@ pub fn lookup(dests: &[PathBuf], list_threshold: usize) -> (Lookup, LookupStats,
                 Ok(s) => {
                     found.insert(f.clone(), s);
                 }
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    // Older macOS: an iCloud file that isn't downloaded shows up
+                    // only as a hidden `.Name.icloud` stand-in.
+                    if crate::platform::environment().icloud_stubs {
+                        if let Some(st) = stub_stat(f) {
+                            found.insert(f.clone(), st);
+                        }
+                    }
+                }
                 Err(e) => errors.push(format!("{}: {e}", f.display())),
             }
         }
@@ -93,11 +101,28 @@ fn list_dir(dir: &Path, wanted: &[&PathBuf], found: &mut Lookup) -> io::Result<(
     }
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
-        if let Some(dest) = want.get(&meta::name_key(&entry.file_name())) {
+        let name = entry.file_name();
+        if let Some(dest) = want.get(&meta::name_key(&name)) {
             found.insert((*dest).clone(), meta::entry_stat(&entry)?);
+        } else if let Some(real) = meta::icloud_stub_real_name(&name) {
+            // A listing reveals iCloud stand-ins for free, on any OS.
+            if let Some(dest) = want.get(&meta::name_key(&real)) {
+                let mut st = meta::entry_stat(&entry)?;
+                st.kind = Kind::ICloudStub;
+                st.meta.cloud_only = true;
+                found.entry((*dest).clone()).or_insert(st);
+            }
         }
     }
     Ok(())
+}
+
+fn stub_stat(dest: &Path) -> Option<Stat> {
+    let stub = dest.with_file_name(meta::icloud_stub_name(dest.file_name()?));
+    let mut st = meta::stat(&stub).ok()?;
+    st.kind = Kind::ICloudStub;
+    st.meta.cloud_only = true;
+    Some(st)
 }
 
 #[cfg(test)]
@@ -138,5 +163,15 @@ mod tests {
         // "nope" and "nope/deeper" are both known missing.
         assert_eq!(ls.dirs_missing, 2);
         assert_eq!(ss.dirs_missing, 2);
+    }
+
+    #[test]
+    fn listing_finds_icloud_stand_ins() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(".Report.pdf.icloud"), b"plist").unwrap();
+        let dest = dir.path().join("Report.pdf");
+        let (found, _, errs) = lookup(std::slice::from_ref(&dest), 1);
+        assert!(errs.is_empty());
+        assert_eq!(found.get(&dest).unwrap().kind, Kind::ICloudStub);
     }
 }

@@ -5,10 +5,30 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 type FileMeta = { size: number; mtime_ms: number; cloud_only: boolean };
 type Action = { kind: "create" } | { kind: "overwrite" } | { kind: "skip"; reason: string };
-type PlanItem = { source: string; dest: string; rel: string; src: FileMeta; dst: FileMeta | null; action: Action };
+type PlanItem = {
+  source: string;
+  dest: string;
+  rel: string;
+  src: FileMeta;
+  dst: FileMeta | null;
+  action: Action;
+  rename_only: boolean;
+  icloud_stub: boolean;
+};
+type Level = "info" | "warn" | "danger";
+type Warning = { level: Level; code: string; message: string };
+type Environment = {
+  os: string;
+  version: string;
+  major: number;
+  icloud_stubs: boolean;
+  cloud_detection: boolean;
+  notes: Warning[];
+};
 type Plan = {
   items: PlanItem[];
   errors: string[];
+  warnings: Warning[];
   lookup: { dirs_listed: number; files_statted: number; dirs_missing: number };
 };
 type Progress = { index: number; done: number; total: number; source: string; error: string | null };
@@ -26,10 +46,89 @@ const progressEl = $<HTMLProgressElement>("progress");
 const summaryEl = $<HTMLDivElement>("summary");
 const errorsEl = $<HTMLUListElement>("errors");
 const table = $<HTMLTableElement>("plan-table");
+const ackBox = $<HTMLInputElement>("ack");
 
 let sources: string[] = [];
 let target: string | null = null;
 let plan: Plan | null = null;
+let pathWarnings: Warning[] = [];
+let running = false;
+
+// ---------- guardrails ----------
+
+const ICON: Record<Level, string> = { info: "ℹ️", warn: "⚠️", danger: "⛔" };
+const ORDER: Record<Level, number> = { danger: 0, warn: 1, info: 2 };
+
+function warningItems(list: Warning[]) {
+  return list.map((w) => {
+    const li = document.createElement("li");
+    li.className = w.level;
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = ICON[w.level];
+    li.append(tag, w.message);
+    return li;
+  });
+}
+
+/** Path warnings (before Preview) plus plan warnings (before Run). */
+function allWarnings(): Warning[] {
+  const seen = new Set<string>();
+  const out: Warning[] = [];
+  for (const w of [...pathWarnings, ...(plan?.warnings ?? [])]) {
+    // The same library can be reported from both the paths and the plan.
+    const key = w.code === "library_source" ? w.code : w.code + w.message;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(w);
+    }
+  }
+  return out.sort((a, b) => ORDER[a.level] - ORDER[b.level]);
+}
+
+const hasDanger = () => allWarnings().some((w) => w.level === "danger");
+const runnableCount = () => (plan ? plan.items.filter((it) => it.action.kind !== "skip").length : 0);
+
+function updateRunEnabled() {
+  runBtn.disabled = running || runnableCount() === 0 || (hasDanger() && !ackBox.checked);
+}
+ackBox.addEventListener("change", updateRunEnabled);
+
+function renderWarnings() {
+  const list = allWarnings();
+  $("warnings").replaceChildren(...warningItems(list));
+  $("warnings-wrap").hidden = list.length === 0;
+  const danger = list.some((w) => w.level === "danger");
+  $("ack-wrap").hidden = !danger || !plan;
+  if (!danger) ackBox.checked = false;
+  updateRunEnabled();
+}
+
+let checkSeq = 0;
+async function refreshPathWarnings() {
+  const seq = ++checkSeq;
+  const w = await invoke<Warning[]>("check", {
+    req: {
+      sources,
+      target,
+      operation: $<HTMLSelectElement>("operation").value,
+      engine: $<HTMLSelectElement>("engine").value,
+    },
+  }).catch(() => [] as Warning[]);
+  if (seq !== checkSeq) return; // a newer check superseded this one
+  pathWarnings = w;
+  renderWarnings();
+}
+
+invoke<Environment>("environment").then((env) => {
+  const name: Record<string, string> = { windows: "Windows", macos: "macOS", linux: "Linux" };
+  $("env-line").textContent =
+    `${name[env.os] ?? env.os} ${env.version} · cloud-only detection ${env.cloud_detection ? "on" : "not available"}` +
+    (env.icloud_stubs ? " · older iCloud Drive format (.icloud stand-ins)" : "");
+  const notes = $("env-notes");
+  notes.replaceChildren(...warningItems(env.notes));
+  notes.hidden = env.notes.length === 0;
+});
 
 // ---------- source & target lists ----------
 
@@ -65,15 +164,18 @@ function setTarget(p: string | null) {
   invalidate();
 }
 
+/** Any input changed: drop the plan and re-check the paths. */
 function invalidate() {
   plan = null;
+  ackBox.checked = false;
   renderSources();
   targetBox.textContent = target ?? "";
   targetBox.title = target ?? "";
-  runBtn.disabled = true;
   table.hidden = true;
   summaryEl.textContent = "";
   errorsEl.replaceChildren();
+  renderWarnings();
+  refreshPathWarnings();
 }
 
 $("add-files").onclick = async () => {
@@ -118,6 +220,7 @@ getCurrentWebview().onDragDropEvent((e) => {
   if (p.type === "over" || p.type === "enter") return highlight(zone);
   if (p.type === "drop") {
     highlight(null);
+    if (running) return;
     if (zone === "target" && p.paths.length) setTarget(p.paths[0]);
     else if (p.paths.length) addSources(p.paths);
   }
@@ -127,12 +230,15 @@ getCurrentWebview().onDragDropEvent((e) => {
 
 function options() {
   return {
+    operation: $<HTMLSelectElement>("operation").value,
     rule: $<HTMLSelectElement>("rule").value,
     tolerance_ms: Math.max(0, Number($<HTMLInputElement>("tolerance").value) || 0) * 1000,
     skip_cloud_only: $<HTMLInputElement>("skip-cloud").checked,
   };
 }
-for (const id of ["rule", "tolerance", "skip-cloud"]) $(id).addEventListener("change", invalidate);
+for (const id of ["operation", "engine", "rule", "tolerance", "skip-cloud"]) {
+  $(id).addEventListener("change", invalidate);
+}
 
 invoke<string | null>("rclone_version").then((v) => {
   if (!v) return;
@@ -168,6 +274,13 @@ function showErrors(errs: string[]) {
   );
 }
 
+function note(it: PlanItem) {
+  if (it.action.kind === "skip") return it.action.reason;
+  if (it.rename_only) return "moved by renaming within the cloud folder (no download)";
+  if (it.src.cloud_only) return "cloud-only: will be downloaded";
+  return "";
+}
+
 previewBtn.onclick = async () => {
   if (!sources.length || !target) {
     summaryEl.textContent = "Add at least one source and choose a target folder.";
@@ -179,23 +292,20 @@ previewBtn.onclick = async () => {
     plan = await invoke<Plan>("plan", { req: { sources, target, options: options() } });
   } catch (e) {
     summaryEl.textContent = String(e);
-    previewBtn.disabled = false;
     return;
+  } finally {
+    previewBtn.disabled = false;
   }
-  previewBtn.disabled = false;
 
   const n = { create: 0, overwrite: 0, skip: 0 };
   let bytes = 0;
-  let cloud = 0;
   for (const it of plan.items) {
     n[it.action.kind]++;
-    if (it.action.kind !== "skip") bytes += it.src.size;
-    if (it.src.cloud_only) cloud++;
+    if (it.action.kind !== "skip" && !it.rename_only) bytes += it.src.size;
   }
   const l = plan.lookup;
   summaryEl.textContent =
     `${n.create} new, ${n.overwrite} to overwrite, ${n.skip} skipped — ${fmtSize(bytes)} to transfer.` +
-    (cloud ? ` ${cloud} source files are cloud-only.` : "") +
     ` Target check: ${l.dirs_listed} folders listed, ${l.files_statted} files looked up, ${l.dirs_missing} folders new.`;
   showErrors(plan.errors);
 
@@ -207,11 +317,11 @@ previewBtn.onclick = async () => {
       tr.append(
         cell(it.action.kind, "badge"),
         cell(it.rel + (it.src.cloud_only ? " ☁" : ""), "path"),
-        cell(fmtSize(it.src.size), "num"),
+        cell(it.icloud_stub ? "?" : fmtSize(it.src.size), "num"),
         cell(fmtTime(it.src.mtime_ms)),
         cell(it.dst ? fmtSize(it.dst.size) : "", "num"),
         cell(it.dst ? fmtTime(it.dst.mtime_ms) : ""),
-        cell(it.action.kind === "skip" ? it.action.reason : ""),
+        cell(note(it)),
       );
       return tr;
     }),
@@ -224,18 +334,25 @@ previewBtn.onclick = async () => {
     tbody.append(tr);
   }
   table.hidden = plan.items.length === 0;
-  runBtn.disabled = n.create + n.overwrite === 0;
+  renderWarnings();
 };
 
 // ---------- run ----------
 
 let failures: string[] = [];
 
+function setRunning(on: boolean) {
+  running = on;
+  previewBtn.disabled = on;
+  cancelBtn.hidden = !on;
+  updateRunEnabled();
+}
+
 runBtn.onclick = async () => {
-  if (!plan) return;
+  if (!plan || runBtn.disabled) return;
   const jobs = plan.items
     .filter((it) => it.action.kind !== "skip")
-    .map((it) => ({ source: it.source, dest: it.dest }));
+    .map((it) => ({ source: it.source, dest: it.dest, rename_only: it.rename_only }));
   failures = [];
   showErrors([]);
   progressEl.max = jobs.length;
@@ -253,17 +370,12 @@ runBtn.onclick = async () => {
     });
   } catch (e) {
     summaryEl.textContent = String(e);
+    progressEl.hidden = true;
     setRunning(false);
   }
 };
 
 cancelBtn.onclick = () => invoke("cancel");
-
-function setRunning(on: boolean) {
-  previewBtn.disabled = on;
-  runBtn.disabled = true;
-  cancelBtn.hidden = !on;
-}
 
 listen<Progress>("transfer-progress", ({ payload: p }) => {
   progressEl.value = p.done;
@@ -275,9 +387,10 @@ listen<Progress>("transfer-progress", ({ payload: p }) => {
 });
 
 listen<{ Ok: Summary } | { Err: string }>("transfer-done", ({ payload }) => {
-  setRunning(false);
   progressEl.hidden = true;
-  plan = null;
+  plan = null; // the file system changed; force a fresh preview
+  setRunning(false);
+  renderWarnings();
   if ("Err" in payload) summaryEl.textContent = payload.Err;
   else {
     const s = payload.Ok;

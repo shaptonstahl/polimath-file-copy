@@ -9,6 +9,7 @@
   </head>
   <body>
     <main class="app">
+      <ul class="warnings env" id="env-notes" hidden></ul>
       <section class="panels">
         <div class="panel" id="source-panel">
           <header>
@@ -71,7 +72,15 @@
         <button id="cancel" class="ghost" hidden>Cancel</button>
       </section>
 
+      <section class="warnings-wrap" id="warnings-wrap" hidden>
+        <ul class="warnings" id="warnings"></ul>
+        <label class="ack" id="ack-wrap" hidden>
+          <input type="checkbox" id="ack" /> I understand the warnings marked ⛔ and want to run anyway
+        </label>
+      </section>
+
       <section class="results">
+        <div class="env-line" id="env-line"></div>
         <div class="summary" id="summary"></div>
         <progress id="progress" hidden></progress>
         <ul class="errors" id="errors"></ul>

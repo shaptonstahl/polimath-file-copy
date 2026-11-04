@@ -1,14 +1,16 @@
 pub mod decide;
 pub mod execute;
+pub mod guard;
 pub mod meta;
 pub mod model;
 pub mod planner;
+pub mod platform;
 pub mod rclone;
 pub mod scan;
 pub mod target;
 
 use execute::{Job, Summary, Transfer};
-use model::{Operation, Plan, PlanOptions};
+use model::{Operation, Plan, PlanOptions, Warning};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -78,6 +80,29 @@ fn execute(app: AppHandle, state: State<'_, AppState>, req: ExecuteRequest) -> R
 }
 
 #[tauri::command]
+fn environment() -> platform::Environment {
+    platform::environment().clone()
+}
+
+#[derive(Deserialize)]
+struct CheckRequest {
+    sources: Vec<PathBuf>,
+    target: Option<PathBuf>,
+    operation: Operation,
+    engine: Engine,
+}
+
+/// Path-level guardrails, shown before Preview.
+#[tauri::command]
+async fn check(req: CheckRequest) -> Vec<Warning> {
+    tauri::async_runtime::spawn_blocking(move || {
+        guard::check_paths(&req.sources, req.target.as_deref(), req.operation, req.engine == Engine::Rclone)
+    })
+    .await
+    .unwrap_or_default()
+}
+
+#[tauri::command]
 fn cancel(state: State<'_, AppState>) {
     state.cancel.store(true, Ordering::SeqCst);
 }
@@ -92,7 +117,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![plan, execute, cancel, rclone_version])
+        .invoke_handler(tauri::generate_handler![plan, execute, cancel, rclone_version, environment, check])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

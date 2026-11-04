@@ -2,8 +2,10 @@
 
 use crate::model::{Action, FileMeta, OverwriteRule, PlanOptions};
 
-pub fn decide(src: &FileMeta, dst: Option<&FileMeta>, opts: &PlanOptions) -> Action {
-    if src.cloud_only && opts.skip_cloud_only {
+/// `cloud_ok`: a cloud-only source can be handled without downloading it
+/// (a move by rename within its own sync root).
+pub fn decide(src: &FileMeta, dst: Option<&FileMeta>, opts: &PlanOptions, cloud_ok: bool) -> Action {
+    if src.cloud_only && opts.skip_cloud_only && !cloud_ok {
         return Action::Skip {
             reason: "source is cloud-only; copying would download it".into(),
         };
@@ -54,12 +56,12 @@ mod tests {
     }
 
     fn overwrites(rule: OverwriteRule, src: FileMeta, dst: FileMeta) -> bool {
-        decide(&src, Some(&dst), &opts(rule)) == Action::Overwrite
+        decide(&src, Some(&dst), &opts(rule), false) == Action::Overwrite
     }
 
     #[test]
     fn missing_target_is_created() {
-        assert_eq!(decide(&meta(1, 0), None, &opts(OverwriteRule::Never)), Action::Create);
+        assert_eq!(decide(&meta(1, 0), None, &opts(OverwriteRule::Never), false), Action::Create);
     }
 
     #[test]
@@ -101,9 +103,11 @@ mod tests {
     #[test]
     fn cloud_only_source_skipped_unless_allowed() {
         let src = FileMeta { size: 1, mtime_ms: 0, cloud_only: true };
-        assert!(matches!(decide(&src, None, &opts(OverwriteRule::Always)), Action::Skip { .. }));
+        assert!(matches!(decide(&src, None, &opts(OverwriteRule::Always), false), Action::Skip { .. }));
         let allow = PlanOptions { skip_cloud_only: false, ..opts(OverwriteRule::Always) };
-        assert_eq!(decide(&src, None, &allow), Action::Create);
+        assert_eq!(decide(&src, None, &allow, false), Action::Create);
+        // A rename within the sync root needs no download, so it isn't skipped.
+        assert_eq!(decide(&src, None, &opts(OverwriteRule::Always), true), Action::Create);
     }
 
     #[test]

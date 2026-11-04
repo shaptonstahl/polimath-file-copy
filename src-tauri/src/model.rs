@@ -33,11 +33,35 @@ impl OverwriteRule {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Operation {
+    #[default]
     Copy,
     Move,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Level {
+    Info,
+    Warn,
+    /// The user must acknowledge this before running.
+    Danger,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Warning {
+    pub level: Level,
+    /// Stable identifier, e.g. "photos_library".
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl Warning {
+    pub fn new(level: Level, code: &'static str, message: String) -> Self {
+        Self { level, code, message }
+    }
 }
 
 /// Metadata that can be read without touching file content.
@@ -58,10 +82,15 @@ pub struct SourceFile {
     /// folder `Photos` was dropped into the source list.
     pub rel_path: PathBuf,
     pub meta: FileMeta,
+    /// An older-macOS iCloud stand-in (`.Name.icloud`); `rel_path` already
+    /// holds the real name and `meta.size` is unknown (0).
+    pub icloud_stub: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlanOptions {
+    #[serde(default)]
+    pub operation: Operation,
     pub rule: OverwriteRule,
     /// Modified times closer than this are treated as equal. Network shares,
     /// NAS volumes and cloud drives often store coarser timestamps than NTFS
@@ -91,6 +120,7 @@ fn default_list_threshold() -> usize {
 impl Default for PlanOptions {
     fn default() -> Self {
         Self {
+            operation: Operation::Copy,
             rule: OverwriteRule::Never,
             tolerance_ms: default_tolerance(),
             skip_cloud_only: true,
@@ -117,6 +147,10 @@ pub struct PlanItem {
     pub src: FileMeta,
     pub dst: Option<FileMeta>,
     pub action: Action,
+    /// Cloud-only file moved within its own sync root: must be done as a
+    /// rename, never as copy + delete (which would download it).
+    pub rename_only: bool,
+    pub icloud_stub: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -133,5 +167,6 @@ pub struct LookupStats {
 pub struct Plan {
     pub items: Vec<PlanItem>,
     pub errors: Vec<String>,
+    pub warnings: Vec<Warning>,
     pub lookup: LookupStats,
 }

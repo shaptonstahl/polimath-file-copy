@@ -2278,6 +2278,7 @@ name = "polimath-file-copy"
 version = "0.1.0"
 dependencies = [
  "filetime",
+ "libc",
  "serde",
  "serde_json",
  "tauri",
