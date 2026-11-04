@@ -4,11 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Polimath File Copy</title>
+    <link rel="icon" type="image/png" href="/src/brand/polimath_icon_64.png" />
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/main.ts" defer></script>
   </head>
   <body>
     <main class="app">
+      <header class="brand-bar">
+        <img src="/src/brand/polimath_icon_64.png" alt="" />
+        <h1><span class="mark">Polimath</span> File Copy</h1>
+        <div class="env-line" id="env-line"></div>
+      </header>
       <ul class="warnings env" id="env-notes" hidden></ul>
       <section class="panels">
         <div class="panel" id="source-panel">
@@ -84,7 +90,6 @@
       </section>
 
       <section class="results">
-        <div class="env-line" id="env-line"></div>
         <div class="summary" id="summary"></div>
         <progress id="progress" hidden></progress>
         <ul class="errors" id="errors"></ul>

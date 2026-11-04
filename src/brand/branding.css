@@ -1,0 +1,18 @@
+/* branding.css */
+/* Core Polimath Color Palette & Typography Variables */
+
+:root {
+  /* Primary Palette: The Nautical Architect */
+  --polimath-bg-deep: #0A192F;       /* Midnight Navy: Evokes the deep sea and dark mode UI */
+  --polimath-blueprint: #1A3A5A;     /* Blueprint Blue: Used for structural elements and grid lines */
+  --polimath-drafting-white: #F0F8FF;/* Drafting White: Primary text color, slightly softer than pure white */
+  
+  /* Accent Colors: Derived from the sextant and glowing nodes */
+  --polimath-copper: #B87333;        /* Brass/Copper: For secondary headings, classical elements, and the compass body */
+  --polimath-cyan-glow: #00E5FF;     /* Electric Cyan: For data nodes, links, and active terminal states */
+  --polimath-signal-red: #C21807;    /* Signal Red: Used sparingly for errors, warnings, or critical data points */
+
+  /* Typography Stacks */
+  --polimath-font-heading: 'Merriweather', 'Georgia', serif;
+  --polimath-font-body: 'Fira Code', 'Roboto Mono', monospace;
+}
