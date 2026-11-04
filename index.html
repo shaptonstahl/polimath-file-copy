@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polimath File Copy</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <main class="app">
+      <section class="panels">
+        <div class="panel" id="source-panel">
+          <header>
+            <h2>Sources</h2>
+            <span class="count" id="source-count"></span>
+            <div class="spacer"></div>
+            <button id="add-files">Add files…</button>
+            <button id="add-folders">Add folders…</button>
+            <button id="clear-sources" class="ghost">Clear</button>
+          </header>
+          <ul class="drop list" id="source-list" data-empty="Drop files and folders here"></ul>
+        </div>
+
+        <div class="panel" id="target-panel">
+          <header>
+            <h2>Target folder</h2>
+            <div class="spacer"></div>
+            <button id="choose-target">Choose…</button>
+          </header>
+          <div class="drop target" id="target-box" data-empty="Drop a folder here"></div>
+        </div>
+      </section>
+
+      <section class="options">
+        <label>Operation
+          <select id="operation">
+            <option value="copy">Copy</option>
+            <option value="move">Move</option>
+          </select>
+        </label>
+        <label>If the file exists
+          <select id="rule">
+            <option value="never">Skip it</option>
+            <option value="replace_older" selected>Replace older</option>
+            <option value="replace_newer">Replace newer</option>
+            <option value="replace_smaller">Replace smaller</option>
+            <option value="replace_larger">Replace larger</option>
+            <option value="replace_different">Replace if different</option>
+            <option value="always">Always replace</option>
+          </select>
+        </label>
+        <label title="Times closer than this count as equal. Network shares and cloud drives often round timestamps.">Time tolerance (s)
+          <input id="tolerance" type="number" min="0" step="1" value="2" />
+        </label>
+        <label title="Copying a cloud-only placeholder downloads it first.">
+          <span><input id="skip-cloud" type="checkbox" checked /> Skip cloud-only sources</span>
+        </label>
+        <label>Engine
+          <select id="engine">
+            <option value="native">Built-in</option>
+            <option value="rclone" disabled>rclone (not found)</option>
+          </select>
+        </label>
+        <label title="Several transfers at once hide network latency.">Parallel
+          <input id="parallel" type="number" min="1" max="32" value="4" />
+        </label>
+        <div class="spacer"></div>
+        <button id="preview" class="primary">Preview</button>
+        <button id="run" class="primary" disabled>Run</button>
+        <button id="cancel" class="ghost" hidden>Cancel</button>
+      </section>
+
+      <section class="results">
+        <div class="summary" id="summary"></div>
+        <progress id="progress" hidden></progress>
+        <ul class="errors" id="errors"></ul>
+        <div class="table-wrap">
+          <table id="plan-table" hidden>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>File</th>
+                <th class="num">Source size</th>
+                <th>Source modified</th>
+                <th class="num">Target size</th>
+                <th>Target modified</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

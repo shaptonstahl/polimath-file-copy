@@ -1,0 +1,94 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --border: #d9dde3;
+  --text: #1c2026;
+  --muted: #667085;
+  --accent: #2f6fde;
+  --accent-text: #ffffff;
+  --drop: #eaf1fd;
+  --create: #1f7a3d;
+  --overwrite: #a35a00;
+  --skip: #8a8f98;
+  --error: #b42318;
+  color-scheme: light dark;
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171b;
+    --panel: #1d2026;
+    --border: #343944;
+    --text: #e6e8eb;
+    --muted: #98a0ad;
+    --accent: #5b8ff0;
+    --drop: #1f2a3d;
+    --create: #5cc47f;
+    --overwrite: #f0a64a;
+    --skip: #7d8490;
+    --error: #f97066;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+.app { display: flex; flex-direction: column; gap: 12px; padding: 12px; height: 100vh; }
+
+.panels { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; min-height: 180px; flex: 0 0 34%; }
+.panel {
+  display: flex; flex-direction: column; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; min-width: 0;
+}
+.panel.over { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.panel.over .drop { background: var(--drop); }
+.panel header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.panel h2 { font-size: 13px; margin: 0; font-weight: 600; }
+.count { color: var(--muted); font-size: 12px; }
+.spacer { flex: 1; }
+
+.drop { flex: 1; overflow: auto; margin: 0; padding: 6px; }
+.drop:empty::before {
+  content: attr(data-empty); display: flex; height: 100%; align-items: center; justify-content: center;
+  color: var(--muted);
+}
+.list { list-style: none; }
+.list li { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; }
+.list li:hover { background: var(--bg); }
+.list li span, .target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+.target { padding: 10px; }
+
+.options {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+}
+.options label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.options label span { display: flex; align-items: center; gap: 4px; color: var(--text); font-size: 13px; height: 30px; }
+input[type="number"] { width: 70px; }
+
+button, select, input {
+  font: inherit; color: var(--text); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; height: 30px;
+}
+button { cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.ghost { background: transparent; }
+button.icon { padding: 0 8px; height: 22px; }
+
+.results { flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.summary { min-height: 1.4em; }
+progress { width: 100%; }
+.errors { margin: 0; padding-left: 18px; color: var(--error); max-height: 90px; overflow: auto; font-size: 12.5px; }
+.table-wrap { flex: 1; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--panel); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.path { font-family: ui-monospace, Consolas, monospace; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+td.badge { font-weight: 600; text-transform: capitalize; }
+tr.create td.badge { color: var(--create); }
+tr.overwrite td.badge { color: var(--overwrite); }
+tr.skip td { color: var(--skip); }
+.target:empty::before { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px; }
+.table-wrap:has(> table[hidden]) { display: none; }
