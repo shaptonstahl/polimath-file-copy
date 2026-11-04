@@ -250,10 +250,11 @@ pub fn plan_warnings(
             Level::Info,
             "cloud_skipped",
             format!(
-                "{} will be skipped because copying would download {}. Turn off \"Skip cloud-only \
-                 sources\" to include them.",
+                "{} will be skipped because {} would download {it}. Turn off \"Skip cloud-only \
+                 sources\" to include {it}.",
                 plural(cloud_skipped, "cloud-only file", "cloud-only files"),
-                if cloud_skipped == 1 { "it" } else { "them" },
+                if opts.operation == Operation::Move { "moving" } else { "copying" },
+                it = if cloud_skipped == 1 { "it" } else { "them" },
             ),
         ));
     }
@@ -307,7 +308,11 @@ pub fn plan_warnings(
         w.push(Warning::new(
             Level::Info,
             "move_leaves_skipped",
-            format!("{} will stay where {} are.", plural(skipped, "skipped file", "skipped files"), if skipped == 1 { "it" } else { "they" }),
+            format!(
+                "{} will stay where {}.",
+                plural(skipped, "skipped file", "skipped files"),
+                if skipped == 1 { "it is" } else { "they are" }
+            ),
         ));
     }
 
