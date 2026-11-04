@@ -18,6 +18,8 @@ A free, open-source desktop file copy and move utility for Windows, Linux and ma
   - ⚠️ A target that already has an iCloud stand-in for a file.
   - ⚠️ Sync-looking folders on an OS that can't detect placeholders.
   - ℹ️ The rclone engine on macOS drops Finder tags and extended attributes.
+- **Optional job logs.** Tick **Write log** and every Preview and Run writes a log. Each log lists every source file with the metadata behind its decision, the decision, the result, and details of the whole job. Preview logs say "PREVIEW ONLY" at the top and bottom and have `_preview` in the file name. Logs go to a per-user folder by default; you can change it under **⚙ Settings**. See [docs/INSTALL.md](docs/INSTALL.md#logs) for the default locations.
+- **End-of-job summary.** When a Run finishes, fails or is cancelled, a popup shows how it ended and the counts: done, failed, not attempted and skipped. If a log was written, it shows the full path with links to open the log or show it in its folder.
 - **Timestamp tolerance** (2 s by default). NAS, SMB and cloud drives often round timestamps, which would otherwise make every file look changed.
 - **Fewer round trips.** For each target folder the app either lists the folder once or looks up just the needed files, whichever is cheaper. A missing folder is detected once, and everything inside it counts as new.
 - **Parallel transfers** hide per-file latency on slow links.
@@ -67,6 +69,10 @@ npm run tauri build
 | `src-tauri/src/planner.rs` | Ties scanning, lookup and rules together into a reviewable plan |
 | `src-tauri/src/platform.rs` | OS version, sync-root detection (Windows cloud-files API; macOS `~/Library/CloudStorage` and iCloud Drive), free space |
 | `src-tauri/src/guard.rs` | Path and plan guardrails |
+| `src-tauri/src/job.rs` | Runs a previewed plan end to end and writes its log |
+| `src-tauri/src/joblog.rs` | Log file format (header, one tab-separated row per file, footer) |
+| `src-tauri/src/outcome.rs` | How a job ended, in words for the popup and log |
+| `src-tauri/src/settings.rs` | Per-user settings (logging on/off, log folder) |
 | `src-tauri/src/execute.rs` | Parallel executor and the built-in engine |
 | `src-tauri/src/rclone.rs` | rclone engine via `rclone rcd` on localhost |
 | `src/main.ts` | UI: drag and drop, options, preview table, progress |

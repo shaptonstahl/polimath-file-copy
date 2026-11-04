@@ -2,9 +2,11 @@
 //! print the path and plan guardrails.
 //!
 //!     cargo run --example plan -- copy|move <target> <source>...
+//!
+//! Set `PFC_LOG_DIR` to also write the preview log there.
 
 use polimath_file_copy_lib::model::{Action, Operation, PlanOptions};
-use polimath_file_copy_lib::{guard, planner};
+use polimath_file_copy_lib::{guard, job, planner};
 use std::path::PathBuf;
 
 fn main() {
@@ -27,5 +29,11 @@ fn main() {
     println!("== plan: {} items, {} skipped, {} rename-only, {} errors ==", plan.items.len(), skip, renames, plan.errors.len());
     for w in &plan.warnings {
         println!("[{:?}] {}: {}", w.level, w.code, w.message);
+    }
+    if let Some(dir) = std::env::var_os("PFC_LOG_DIR") {
+        match job::write_preview_log(PathBuf::from(dir).as_path(), &sources, &target, &opts, &plan, chrono::Local::now()) {
+            Ok(p) => println!("preview log: {}", p.display()),
+            Err(e) => println!("log error: {e}"),
+        }
     }
 }

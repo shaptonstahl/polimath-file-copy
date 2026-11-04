@@ -66,7 +66,11 @@
         <label title="Several transfers at once hide network latency.">Parallel
           <input id="parallel" type="number" min="1" max="32" value="4" />
         </label>
+        <label title="Write a log of every file, its decision and its result, for both Preview and Run.">
+          <span><input id="log" type="checkbox" /> Write log</span>
+        </label>
         <div class="spacer"></div>
+        <button id="open-settings" class="ghost" title="Settings">⚙ Settings</button>
         <button id="preview" class="primary">Preview</button>
         <button id="run" class="primary" disabled>Run</button>
         <button id="cancel" class="ghost" hidden>Cancel</button>
@@ -102,5 +106,46 @@
         </div>
       </section>
     </main>
+
+    <dialog id="settings-dialog">
+      <form method="dialog">
+        <h2>Settings</h2>
+        <h3>Logs</h3>
+        <p class="muted">Each Preview and Run writes its own log when <b>Write log</b> is ticked.</p>
+        <label class="stack">Log folder
+          <input id="log-dir" type="text" readonly />
+        </label>
+        <p class="muted" id="log-dir-default"></p>
+        <div class="row">
+          <button type="button" id="choose-log-dir">Choose folder…</button>
+          <button type="button" id="reset-log-dir" class="ghost">Use default</button>
+          <button type="button" id="open-log-dir" class="ghost">Open folder</button>
+        </div>
+        <p class="error-text" id="settings-error"></p>
+        <div class="row end">
+          <button value="close" class="primary">Done</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="outcome-dialog">
+      <form method="dialog">
+        <h2 id="outcome-title"></h2>
+        <p id="outcome-message"></p>
+        <ul class="outcome-counts" id="outcome-counts"></ul>
+        <div id="outcome-log" hidden>
+          <p class="muted">Log written to:</p>
+          <p><a href="#" id="outcome-log-link" class="path"></a></p>
+          <div class="row">
+            <button type="button" id="outcome-open-log">Open log</button>
+            <button type="button" id="outcome-reveal-log" class="ghost">Show in folder</button>
+          </div>
+        </div>
+        <p class="error-text" id="outcome-log-error"></p>
+        <div class="row end">
+          <button value="close" class="primary" autofocus>OK</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>
